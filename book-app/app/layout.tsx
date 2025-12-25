@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Sora } from "next/font/google";
 import "./globals.css";
-
+import Header from "@/components/Header/Header";
+import StoreProvider from "./StoreProvider";
 const geistSans = Geist({
   variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistSora = Geist({
+  variable: "--font-geist-sora",
   subsets: ["latin"],
 });
 
@@ -24,10 +30,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSora.variable} antialiased`}>
+        <StoreProvider>
+          <header className="bg-[#10375C]/95 backdrop-blur-md sticky top-0 z-50 border-b border-white/10 py-6">
+            <Header />
+          </header>
+          <main> {children}</main>
+          <footer></footer>
+        </StoreProvider>
       </body>
     </html>
   );
