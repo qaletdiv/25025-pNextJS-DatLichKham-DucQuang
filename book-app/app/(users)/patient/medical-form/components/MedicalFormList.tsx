@@ -90,7 +90,7 @@ export default function MedicalFormList({ onOpenModal }: MedicalFormListProps) {
           </Link>
 
           <Link
-            href={`/patient/appointments/create-appointment/${row._id}`}
+            href={`/patient/appointment/create-appointment/${row._id}`}
             className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
           >
             Tạo lịch khám

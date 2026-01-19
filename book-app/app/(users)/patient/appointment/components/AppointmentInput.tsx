@@ -14,7 +14,9 @@ import { makeAppointment } from "@/app/redux/slices/patient-medical/patients.sli
 
 export default function AppointmentInput({ slots = [] }) {
   const { id } = useParams();
+  const [showConfirm, setShowConfirm] = useState(false);
   const dispatch = useAppDispatch();
+  const [selectedSlot, setSelectedSlot] = useState<any>(null);
   const { doctorsDepartment, schedule } = useAppSelector(
     (state) => state.patientMedical
   );
@@ -32,6 +34,7 @@ export default function AppointmentInput({ slots = [] }) {
     }
   }, [dispatch, doctorId]);
   const today = new Date();
+
   const doctorEvents =
     schedule?.schedules?.map((item) => {
       const date = item.date.split("T")[0];
@@ -47,8 +50,6 @@ export default function AppointmentInput({ slots = [] }) {
       };
     }) || [];
 
-  const [selectedSlot, setSelectedSlot] = useState<any>(null);
-
   // Kết hợp slots từ props với mock data
   const allEvents = [...doctorEvents, ...slots];
 
@@ -58,17 +59,14 @@ export default function AppointmentInput({ slots = [] }) {
     }
   }, [selectedSlot]);
 
-  const handleSubmitSchedule = () => {
-    if (!selectedSlot || !doctorId) {
-      console.log("Thiếu dữ liệu");
-      return;
-    }
+  const handleSubmitSchedule = async () => {
+    if (!selectedSlot || !doctorId) return;
 
     const examDate = selectedSlot.start.split("T")[0];
     const startTime = selectedSlot.start.split("T")[1].slice(0, 5);
     const endTime = selectedSlot.end.split("T")[1].slice(0, 5);
 
-    dispatch(
+    const result = await dispatch(
       makeAppointment({
         medicalFormId: id,
         appointmentData: {
@@ -79,6 +77,11 @@ export default function AppointmentInput({ slots = [] }) {
         },
       })
     );
+
+    if (makeAppointment.fulfilled.match(result)) {
+      dispatch(doctorSchedule(doctorId));
+      setSelectedSlot(null);
+    }
   };
 
   return (
@@ -109,7 +112,7 @@ export default function AppointmentInput({ slots = [] }) {
           firstDay={1}
           plugins={[timeGridPlugin, interactionPlugin]}
           initialView="timeGridWeek"
-          initialDate={today} // Thứ 2 để test
+          initialDate={today}
           selectable
           selectMirror
           allDaySlot={false}
@@ -129,10 +132,9 @@ export default function AppointmentInput({ slots = [] }) {
             },
           ]}
           selectConstraint="businessHours"
-          events={allEvents} // Sử dụng allEvents thay vì chỉ slots
+          events={allEvents}
           selectOverlap={false}
           select={(info) => {
-            // Chỉ cho phép chọn đúng 30 phút
             const duration =
               (info.end.getTime() - info.start.getTime()) / (1000 * 60);
 
@@ -142,19 +144,17 @@ export default function AppointmentInput({ slots = [] }) {
                 end: info.endStr,
               });
             } else {
-              // Nếu kéo quá, tự động điều chỉnh về 30 phút
               info.view.calendar.unselect();
             }
           }}
-          // Ngăn không cho select vào các slot đã đặt
           selectAllow={(selectInfo) => {
             const start = selectInfo.start;
             const end = selectInfo.end;
             const now = new Date();
             if (start < now) {
-              return false; // Không cho phép chọn các slot trong quá khứ
+              return false;
             }
-            // Kiểm tra xem có bị trùng với event đã đặt không
+
             const hasOverlap = doctorEvents.some((event) => {
               const eventStart = new Date(event.start);
               const eventEnd = new Date(event.end);
@@ -174,11 +174,42 @@ export default function AppointmentInput({ slots = [] }) {
             </p>
           </div>
         )}
+
+        {showConfirm && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-[380px]">
+              <h2 className="text-lg font-semibold mb-2">Xác nhận đặt lịch</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Bạn chắc chắn muốn đặt lịch vào khung giờ này
+              </p>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  className="px-4 py-2 border rounded-lg"
+                  onClick={() => setShowConfirm(false)}
+                >
+                  Huỷ
+                </button>
+                <button
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+                  onClick={() => {
+                    handleSubmitSchedule(), setShowConfirm(false);
+                  }}
+                >
+                  Xác nhận
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <div className="mt-3 flex flex-row-reverse">
         <button
           className="bg-blue-500 flex p-3 rounded-xl text-white cursor-pointer"
-          onClick={handleSubmitSchedule}
+          onClick={() => {
+            if (!selectedSlot || !doctorId) return;
+            setShowConfirm(true);
+          }}
         >
           Xác nhận đặt lịch
         </button>

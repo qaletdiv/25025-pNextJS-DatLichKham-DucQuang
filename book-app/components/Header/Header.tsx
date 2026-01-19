@@ -3,12 +3,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { useAppSelector } from "@/app/redux/hook";
+import { useAppSelector, useAppDispatch } from "@/app/redux/hook";
 import { type MenuItem } from "@/lib/MenuType/MenuType";
+import { logout } from "@/app/redux/slices/auth/auth.slices";
 export default function Header() {
   const account = useAppSelector((state) => state.auth.account);
-  const [burger, setBurger] = useState<boolean>(false);
   const pathname = usePathname();
+  const dispatch = useAppDispatch()
 
   const linkActive = (path: string) => {
     return pathname === path
@@ -26,9 +27,8 @@ export default function Header() {
 
   return (
     <>
-      {/* Header Top */}
+    
       <div className="container mx-auto px-8 flex justify-between items-center">
-        {/* Logo */}
         <Link href="/">
           <Image
             src="/assets/icons/Logo.svg"
@@ -45,7 +45,7 @@ export default function Header() {
               <li
                 key={item.href}
                 className={`text-[16px] py-2 px-[21px] ${linkActive(
-                  item.href
+                  item.href,
                 )}`}
               >
                 <Link
@@ -59,7 +59,6 @@ export default function Header() {
           </ul>
         </nav>
 
-        {/* CTA sigin signup */}
 
         {account ? (
           <div className="flex items-center gap-4">
@@ -71,6 +70,14 @@ export default function Header() {
             >
               Quản lý
             </Link>
+            <button
+              onClick={() => {
+                dispatch(logout());
+                window.location.href = "/login";
+              }}
+            >
+              Đăng xuất
+            </button>
           </div>
         ) : (
           <div className="flex gap-2">

@@ -5,7 +5,6 @@ import { type AuthType } from "@/lib/AuthType/AuthType";
 import { type SignupType } from "@/lib/SignupType/SignupType";
 import { type SigninType } from "@/lib/SiginType/SiginType";
 
-
 const initialState: AuthType = {
   account: null,
   token: typeof window !== "undefined" ? localStorage.getItem("token") : null,
@@ -23,6 +22,9 @@ export const signup = createAsyncThunk<
       email,
       password,
     });
+    const { token } = response.data;
+    localStorage.setItem("token", token);
+    document.cookie = `accessToken=${token}; path=/`;
     return response.data;
   } catch (error: any) {
     return rejectWithValue(error.response?.data?.message || "Lỗi đăng ký");
@@ -49,7 +51,20 @@ export const signin = createAsyncThunk<
 const authSlice = createSlice({
   name: "auths",
   initialState,
-  reducers: {},
+  reducers: {
+    
+    logout: (state) => {
+      state.account = null;
+      state.token = null;
+      state.loading = false;
+      state.error = null;
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token");
+        document.cookie = "accessToken=; path=/; max-age=0";
+      }
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(signup.pending, (state) => {
@@ -80,3 +95,5 @@ const authSlice = createSlice({
 });
 
 export default authSlice.reducer;
+
+export const { logout } = authSlice.actions;

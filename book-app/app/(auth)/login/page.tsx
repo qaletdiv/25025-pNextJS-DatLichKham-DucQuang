@@ -45,7 +45,7 @@ export default function SignIn() {
 
   useEffect(() => {
     if (account) {
-      router.push("/"); // Redirect hợp lý
+      router.push("/"); 
     }
   }, [account, router]);
 
@@ -57,6 +57,7 @@ export default function SignIn() {
           password: data.password,
         })
       ).unwrap();
+      dispatch(loginSuccess(res.account));
       reset();
     } catch (err) {
       console.error("Đăng nhập thất bại:", err);
