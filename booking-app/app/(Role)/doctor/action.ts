@@ -66,3 +66,46 @@ export async function updateMeetingUrl(appointmentId: string, meetingUrl: string
     return { error: "Có lỗi xảy ra khi cập nhật link meeting" };
   }
 }
+
+
+
+export const getPills = async () => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+
+  const response = await fetch("http://localhost:5000/api/v1/pills/", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) return { pills: [] };
+  return response.json();
+};
+
+export const createPrescription = async (data: {
+  appointmentId: string;
+  medicines: Array<{
+    pill: string;
+    dosage: string;
+    quantity: number;
+    instruction: string;
+  }>;
+  note: string;
+}) => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+
+  const response = await fetch(
+    "http://localhost:5000/api/v1/doctors/prescriptions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    },
+  );
+
+  if (!response.ok) return { error: "Kê toa thất bại" };
+  return response.json();
+};

@@ -5,13 +5,17 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { useEffect, useState } from "react";
 import Container from "../Common/Container/Container";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
 import {
   fetchDoctorByDepartment,
   getDoctorScheduleByDoctor,
   makeAppointment,
-  createMoMoPayment,
+  createStripePayment,
 } from "@/app/(Role)/patient/action";
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface Doctor {
   _id: string;
@@ -35,9 +39,7 @@ interface CalendarEvent {
   backgroundColor: string;
   borderColor: string;
   editable: boolean;
-  extendedProps?: {
-    isBooked: boolean;
-  };
+  extendedProps?: { isBooked: boolean };
 }
 
 interface SelectedSlot {
@@ -49,40 +51,85 @@ interface AppointmentInputProps {
   medicalFormId: string;
 }
 
-export default function AppointmentInput({
-  medicalFormId,
-}: AppointmentInputProps) {
+// Form thanh toán Stripe
+function CheckoutForm({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [isPaying, setIsPaying] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handlePay = async () => {
+    if (!stripe || !elements) return;
+    setIsPaying(true);
+    setErrorMsg(null);
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: window.location.href },
+      redirect: "if_required",
+    });
+
+    if (error) {
+      setErrorMsg(error.message || "Thanh toán thất bại!");
+    } else {
+      onSuccess();
+    }
+    setIsPaying(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <PaymentElement />
+      {errorMsg && <p className="text-red-500 text-sm">{errorMsg}</p>}
+      <div className="flex justify-end gap-2 mt-4">
+        <button
+          className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          onClick={onClose}
+          disabled={isPaying}
+        >
+          Huỷ
+        </button>
+        <button
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
+          onClick={handlePay}
+          disabled={isPaying || !stripe}
+        >
+          {isPaying ? "Đang xử lý..." : "Thanh toán"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function AppointmentInput({ medicalFormId }: AppointmentInputProps) {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [doctorId, setDoctorId] = useState<string | null>(null);
   const [doctorEvents, setDoctorEvents] = useState<CalendarEvent[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [showPayment, setShowPayment] = useState(false);
 
   const today = new Date();
 
   useEffect(() => {
+    if (!medicalFormId) return;
     const loadDoctors = async () => {
-      const res = await fetchDoctorByDepartment(medicalFormId as string);
-      if (!res?.error) {
-        setDoctors(res.doctors || res.data || []);
-      }
+      const res = await fetchDoctorByDepartment(medicalFormId);
+      if (!res?.error) setDoctors(res.doctors || res.data || []);
     };
-
-    if (medicalFormId) loadDoctors();
+    loadDoctors();
   }, [medicalFormId]);
 
   useEffect(() => {
     if (!doctorId) return;
-
     const loadSchedule = async () => {
       const res = await getDoctorScheduleByDoctor(doctorId);
-    
-
       if (!res?.error && res.schedules) {
         const events = res.schedules.map((item: Schedule): CalendarEvent => {
           const date = item.date.split("T")[0];
-
           return {
             id: item._id,
             title: "Đã đặt",
@@ -91,19 +138,19 @@ export default function AppointmentInput({
             backgroundColor: "#ef4444",
             borderColor: "#dc2626",
             editable: false,
-            extendedProps: {
-              isBooked: true,
-            },
+            extendedProps: { isBooked: true },
           };
         });
-
-       
         setDoctorEvents(events);
+        setSelectedSlot(null);
       }
     };
-
     loadSchedule();
-  }, [doctorId]);
+  }, [doctorId, refreshKey]);
+
+  useEffect(() => {
+    setRefreshKey((prev) => prev + 1);
+  }, []);
 
   const handleSubmitSchedule = async () => {
     if (!selectedSlot || !doctorId) return;
@@ -115,80 +162,37 @@ export default function AppointmentInput({
       const startTime = selectedSlot.start.split("T")[1].slice(0, 5);
       const endTime = selectedSlot.end.split("T")[1].slice(0, 5);
 
-     
-      console.log("📝 Creating appointment...");
       const appointmentRes = await makeAppointment({
         medicalFormId,
-        appointmentData: {
-          doctorId,
-          date: examDate,
-          startTime,
-          endTime,
-        },
+        appointmentData: { doctorId, date: examDate, startTime, endTime },
       });
 
       if (appointmentRes?.error) {
-     
         alert(appointmentRes.error || "Đặt lịch thất bại!");
         return;
       }
 
-      console.log("✅ Appointment created:", appointmentRes);
-
-    
       const appointmentId =
         appointmentRes?.appointment?._id ||
         appointmentRes?.data?._id ||
         appointmentRes?._id;
 
       if (!appointmentId) {
-       
         alert("Không thể lấy thông tin lịch hẹn!");
         return;
       }
 
-      console.log("💳 Creating MoMo payment for appointment:", appointmentId);
-
-      const paymentRes = await createMoMoPayment(appointmentId);
+      const paymentRes = await createStripePayment(appointmentId);
 
       if (paymentRes?.error) {
-        
-        alert(
-          "Đặt lịch thành công nhưng không thể tạo link thanh toán. Vui lòng thanh toán sau!"
-        );
-        setSelectedSlot(null);
-        setShowConfirm(false);
+        alert("Không thể tạo link thanh toán!");
         return;
       }
 
-     
-      if (paymentRes?.payUrl) {
-        window.location.href = paymentRes.payUrl;
-      } else {
-        alert(" Đặt lịch thành công! Vui lòng thanh toán sau.");
-        setDoctorEvents((prevEvents) =>
-          prevEvents.map((event) => {
-            if (
-              event.start === selectedSlot.start &&
-              event.end === selectedSlot.end
-            ) {
-              return {
-                ...event,
-                title: "Đã đặt",
-                backgroundColor: "#ef4444",
-                borderColor: "#dc2626",
-                extendedProps: {
-                  ...event.extendedProps,
-                  isBooked: true,
-                },
-              };
-            }
-            return event;
-          })
-        );
-
-        setSelectedSlot(null);
+      if (paymentRes?.clientSecret) {
+        setClientSecret(paymentRes.clientSecret);
         setShowConfirm(false);
+        setShowPayment(true);
       }
     } catch (error) {
       alert("Có lỗi xảy ra, thử lại nhé!");
@@ -207,9 +211,7 @@ export default function AppointmentInput({
           onChange={(e) => setDoctorId(e.target.value)}
           disabled={isProcessing}
         >
-          <option value="" disabled>
-            -- Chọn bác sĩ --
-          </option>
+          <option value="" disabled>-- Chọn bác sĩ --</option>
           {doctors.map((doctor) => (
             <option key={doctor._id} value={doctor._id}>
               {doctor.first_name} {doctor.last_name}
@@ -232,29 +234,17 @@ export default function AppointmentInput({
           slotDuration="00:30:00"
           firstDay={1}
           businessHours={[
-            {
-              daysOfWeek: [1, 2, 3, 4, 5, 6],
-              startTime: "08:00",
-              endTime: "12:30",
-            },
-            {
-              daysOfWeek: [1, 2, 3, 4, 5, 6],
-              startTime: "13:30",
-              endTime: "17:00",
-            },
+            { daysOfWeek: [1, 2, 3, 4, 5, 6], startTime: "08:00", endTime: "12:30" },
+            { daysOfWeek: [1, 2, 3, 4, 5, 6], startTime: "13:30", endTime: "17:00" },
           ]}
           selectConstraint="businessHours"
           events={doctorEvents}
           selectOverlap={false}
           select={(info) => {
-            const duration =
-              (info.end.getTime() - info.start.getTime()) / (1000 * 60);
-
+            const duration = (info.end.getTime() - info.start.getTime()) / (1000 * 60);
             if (duration === 30) {
-              setDoctorEvents((prev) =>
-                prev.filter((e) => e.id !== "selected-slot")
-              );
-              const newEvent: CalendarEvent = {
+              setDoctorEvents((prev) => prev.filter((e) => e.id !== "selected-slot"));
+              setDoctorEvents((prev) => [...prev, {
                 id: "selected-slot",
                 title: "Đang chọn",
                 start: info.startStr,
@@ -262,28 +252,17 @@ export default function AppointmentInput({
                 backgroundColor: "#22c55e",
                 borderColor: "#16a34a",
                 editable: false,
-              };
-              setDoctorEvents((prev) => [...prev, newEvent]);
-              setSelectedSlot({
-                start: info.startStr,
-                end: info.endStr,
-              });
+              }]);
+              setSelectedSlot({ start: info.startStr, end: info.endStr });
             } else {
-              alert(
-                `Vui lòng chọn đúng 30 phút. Bạn đã chọn ${duration} phút.`
-              );
+              alert(`Vui lòng chọn đúng 30 phút. Bạn đã chọn ${duration} phút.`);
             }
-
             info.view.calendar.unselect();
           }}
           selectAllow={(selectInfo) => {
-            const start = selectInfo.start;
-            const end = selectInfo.end;
-            const now = new Date();
-
-            if (start < now) return false;
-
-            return !doctorEvents.some((event: CalendarEvent) => {
+            const { start, end } = selectInfo;
+            if (start < new Date()) return false;
+            return !doctorEvents.some((event) => {
               const eventStart = new Date(event.start);
               const eventEnd = new Date(event.end);
               return start < eventEnd && end > eventStart;
@@ -305,27 +284,24 @@ export default function AppointmentInput({
       <div className="mt-3 flex flex-row-reverse">
         <button
           className="bg-blue-500 p-3 rounded-xl text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
-          onClick={() => {
-            if (!selectedSlot || !doctorId) return;
-            setShowConfirm(true);
-          }}
+          onClick={() => { if (!selectedSlot || !doctorId) return; setShowConfirm(true); }}
           disabled={isProcessing || !selectedSlot || !doctorId}
         >
           {isProcessing ? "Đang xử lý..." : "Xác nhận đặt lịch"}
         </button>
       </div>
 
+      {/* Modal xác nhận */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-[380px]">
             <h2 className="text-lg font-semibold mb-2">Xác nhận đặt lịch</h2>
             <p className="text-sm text-gray-600 mb-4">
-              Sau khi xác nhận, bạn sẽ được chuyển đến trang thanh toán MoMo để
-              hoàn tất đặt lịch.
+              Sau khi xác nhận, bạn sẽ thanh toán qua Stripe để hoàn tất đặt lịch.
             </p>
             <div className="flex justify-end gap-2">
               <button
-                className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 border rounded-lg disabled:opacity-50"
                 onClick={() => setShowConfirm(false)}
                 disabled={isProcessing}
               >
@@ -342,6 +318,26 @@ export default function AppointmentInput({
           </div>
         </div>
       )}
+
+      {/* Modal thanh toán Stripe */}
+      {showPayment && clientSecret && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-[480px]">
+            <h2 className="text-lg font-semibold mb-4">Thanh toán</h2>
+            <Elements stripe={stripePromise} options={{ clientSecret }}>
+              <CheckoutForm
+                onSuccess={() => {
+                  setShowPayment(false);
+                  setSelectedSlot(null);
+                  setRefreshKey((prev) => prev + 1);
+                  alert("Đặt lịch và thanh toán thành công!");
+                }}
+                onClose={() => setShowPayment(false)}
+              />
+            </Elements>
+          </div>
+        </div>
+      )}
     </>
   );
-} 
+}

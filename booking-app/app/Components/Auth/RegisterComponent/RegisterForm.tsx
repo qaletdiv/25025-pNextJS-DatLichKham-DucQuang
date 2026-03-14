@@ -31,13 +31,23 @@ export default function RegisterForm() {
   };
 
   const onSubmit = async (data: RegisterDTO) => {
-    try {
-      await Register(data);
-    } catch (error) {
-      if (error instanceof Error) {
+    const result = await Register(data);
+    if (result?.success === false) {
+      const emailError = result.errors.find((e: any) => e.path === "email");
+      const usernameError = result.errors.find(
+        (e: any) => e.path === "username",
+      );
+      if (emailError) {
         setError("email", {
           type: "server",
-          message: error.message,
+          message: emailError.msg,
+        });
+      }
+
+      if (usernameError) {
+        setError("username", {
+          type: "server",
+          message: usernameError.msg,
         });
       }
     }

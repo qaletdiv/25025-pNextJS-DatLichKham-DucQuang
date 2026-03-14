@@ -21,9 +21,6 @@ interface HeaderProps {
 export default function Header({ user }: HeaderProps) {
   const [show, setShow] = useState<boolean>(false);
 
-  // Debug log
-  console.log('🔍 Header - User:', user);
-
   // Function to get dashboard URL based on user role
   const getDashboardUrl = (role: string) => {
     switch (role) {

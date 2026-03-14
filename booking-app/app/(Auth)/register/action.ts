@@ -14,9 +14,15 @@ export async function Register(data: RegisterDTO) {
             password: data.password
         })
     }); 
+
     if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message ?? "Register Failed");
-  }
-  redirect("/login")
-}   
+        const error = await response.json();
+        return {
+            success: false, 
+            message: error.message || "An error occurred during registration.",
+            errors: error.errors || []
+        }
+    }
+
+    redirect("/login")
+}

@@ -148,11 +148,6 @@ export default function MedicalFormListComponent({ forms }: Props) {
                             Xem chi tiết
                         </Link>
 
-                        {form.status === 'rejected' && form.rejectedMessage && (
-                            <Button variant="outline" size="sm" className="text-red-600">
-                                Xem lý do từ chối
-                            </Button>
-                        )}
                     </div>
                 )
             },

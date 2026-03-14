@@ -214,43 +214,6 @@ export async function makeAppointment({
   }
 }
 
-export const createMoMoPayment = async (appointmentId: string) => {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-
-    if (!token) {
-      return { error: "Bạn cần đăng nhập để thực hiện chức năng này" };
-    }
-
-    const response = await fetch(
-      "http://localhost:5000/api/payments-momo/create-payment-momo",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          appointmentId,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      return {
-        error: errorData.message || "Có lỗi xảy ra khi tạo thanh toán",
-      };
-    }
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error("Error creating MoMo payment:", error);
-    return { error: "Có lỗi xảy ra khi kết nối đến server" };
-  }
-};
 
 export const fetchAppointment = async () => {
   try {
@@ -282,3 +245,61 @@ export const fetchAppointment = async () => {
     return { error: "Có lỗi xảy ra khi kết nối đến server" };
   }
 };
+
+export const getDetailAppointment = async (id: string) => {
+  try {
+    const cookiesStore = await cookies();
+    const token = cookiesStore.get("token")?.value;
+    if (!token) {
+      return { error: "Bạn cần đăng nhập để thực hiện chức năng này" };
+    }
+
+    const response = await fetch(
+      `http://localhost:5000/api/v1/patients/appointments/${id}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return {
+        error: errorData.message || "Có lỗi xảy ra khi lấy chi tiết lịch khám",
+      };
+    }
+
+    const result = await response.json();
+    return result.appointment;
+  } catch (error) {
+    console.error("Error fetching appointment detail:", error);
+    return { error: "Có lỗi xảy ra khi kết nối đến server" };
+  }
+};
+
+
+
+export const createStripePayment = async (appointmentId: string) => {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+
+    const response = await fetch("http://localhost:5000/api/v1/payments-stripe", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ appointmentId }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) return { error: data.message || "Lỗi tạo thanh toán" };
+    return data; // { clientSecret }
+  } catch (error) {
+    return { error: "Có lỗi xảy ra khi kết nối đến server" };
+  }
+};
+

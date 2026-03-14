@@ -1,110 +1,179 @@
-import { type ParamType } from "@/app/types/Common/ParamType";
-import { fetchDetailMedicalForm } from "@/app/(Role)/patient/action";
-import Image from "next/image";
+import {
+  User,
+  FileText,
+  Building2,
+  Clock,
+  CheckCircle,
+  CalendarPlus,
+} from "lucide-react";
 import Link from "next/link";
-import BackButton from "../UI/BackButton";
+interface Patient {
+  _id: string;
+  username: string;
+  email: string;
+}
 
-export default async function MedicalFormDetail({ id }: ParamType) {
-  const res = await fetchDetailMedicalForm(id);
-  const medicalForm = res?.medicalForm;
+interface Image {
+  url: string;
+  public_id: string;
+  _id: string;
+}
 
-  if (!medicalForm) {
-    return <div className="p-6 text-red-500">Không tìm thấy phiếu khám</div>;
-  }
+interface Department {
+  _id: string;
+  name: string;
+  description: string;
+}
 
-  const statusColor: Record<string, string> = {
-    pending: "bg-yellow-100 text-yellow-700",
-    approved: "bg-green-100 text-green-700",
-    rejected: "bg-red-100 text-red-700",
-  };
+interface MedicalFormData {
+  _id: string;
+  patient: Patient;
+  images: Image[];
+  description: string;
+  pastMedicalHistory: string;
+  status: string;
+  rejectedMessage: string | null;
+  department: Department;
+  createdAt: string;
+  updatedAt: string;
+}
 
-  const formatDate = (date: string) => new Date(date).toLocaleString("vi-VN");
+type MedicalFormProp = {
+  id: string;
+  data: MedicalFormData;
+  hasAppointment: boolean;
+};
 
-  const renderRow = (label: string, value?: string | null) => (
-    <div className="flex flex-col sm:flex-row sm:gap-4">
-      <span className="font-medium text-gray-600 sm:w-48">{label}</span>
-      <span className="text-gray-900">{value || "-"}</span>
-    </div>
-  );
+const statusColor: Record<string, string> = {
+  approved: "bg-green-100 text-green-700",
+  pending: "bg-yellow-100 text-yellow-700",
+  rejected: "bg-red-100 text-red-700",
+  cancelled: "bg-gray-100 text-gray-600",
+};
+
+const statusLabel: Record<string, string> = {
+  approved: "Đã duyệt",
+  pending: "Chờ duyệt",
+  rejected: "Từ chối",
+  cancelled: "Đã hủy",
+};
+
+const formatDate = (date: string) =>
+  new Date(date).toLocaleDateString("vi-VN", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+const renderRow = (
+  icon: React.ReactNode,
+  label: string,
+  value?: React.ReactNode,
+) => (
+  <div className="flex flex-col sm:flex-row sm:gap-4 sm:items-center">
+    <span className="flex items-center gap-2 font-medium text-gray-500 sm:w-52 text-sm">
+      {icon} {label}
+    </span>
+    <span className="text-gray-900 text-sm">{value || "-"}</span>
+  </div>
+);
+
+export default function MedicalFormDetail({
+  id,
+  data,
+  hasAppointment,
+}: MedicalFormProp) {
+  if (!data) return null;
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-3xl mx-auto p-6 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Chi tiết phiếu khám</h1>
-        <span
-          className={`px-3 py-1 rounded-full text-sm font-semibold ${statusColor[medicalForm.status]}`}
-        >
-          {medicalForm.status.toUpperCase()}
-        </span>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Thông tin bệnh nhân</h2>
-        {renderRow("Tên bệnh nhân", medicalForm.patient.username)}
-        {renderRow("Email", medicalForm.patient.email)}
-      </div>
-
-      <div className="bg-white rounded-2xl shadow p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Nội dung khám</h2>
-        {renderRow("Mô tả triệu chứng", medicalForm.description)}
-        {renderRow("Tiền sử bệnh", medicalForm.pastMedicalHistory)}
-      </div>
-
-      <div className="bg-white rounded-2xl shadow p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Hình ảnh đính kèm</h2>
-
-        {medicalForm.images.length === 0 ? (
-          <p className="text-gray-500">Không có hình ảnh</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {medicalForm.images.map((img: any) => (
-              <div
-                key={img._id}
-                className="relative aspect-square rounded-xl overflow-hidden border"
-              >
-                <Image
-                  src={img.url}
-                  alt="Medical image"
-                  fill
-                  className="object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl shadow p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Thời gian</h2>
-        {renderRow("Ngày tạo", formatDate(medicalForm.createdAt))}
-        {renderRow("Cập nhật", formatDate(medicalForm.updatedAt))}
-      </div>
-
-      {medicalForm.status === "rejected" && medicalForm.rejectedMessage && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
-          <h2 className="text-lg font-semibold text-red-700">Lý do từ chối</h2>
-          <p className="text-red-600 mt-2">{medicalForm.rejectedMessage}</p>
+        <div>
+          <h1 className="text-2xl font-bold">Chi tiết phiếu khám</h1>
+          <p className="text-gray-400 text-xs mt-1 font-mono">
+            #{id.slice(-8).toUpperCase()}
+          </p>
         </div>
-      )}
-      <div className="flex justify-between items-center">
-        <BackButton />
-
-        {medicalForm.status === "approved" ? (
-          <Link
-            href={`/patient/appointment/create/${medicalForm._id}`}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
-          >
-            Đăng ký lịch khám
-          </Link>
-        ) : (
+        <span
+          className={`px-3 py-1 rounded-full text-sm font-semibold ${statusColor[data.status] ?? statusColor["pending"]}`}
+        >
+          {statusLabel[data.status] ?? data.status}
+        </span>
+        {hasAppointment ? (
           <button
             disabled
-            className="px-4 py-2 rounded-lg bg-gray-300 text-gray-500 cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-400 cursor-not-allowed"
           >
-            Đăng ký lịch khám
+            <CalendarPlus size={16} /> Đã đăng ký
           </button>
+        ) : (
+          <Link
+            href={`/patient/appointment/create/${id}`} // ← đổi lại đúng route của bạn
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition"
+          >
+            <CalendarPlus size={16} /> Đăng ký lịch khám
+          </Link>
         )}
       </div>
+
+      {/* Thông tin bệnh nhân */}
+      <div className="bg-white rounded-2xl shadow p-5 space-y-4">
+        <h2 className="text-lg font-semibold">Thông tin bệnh nhân</h2>
+        {renderRow(<User size={15} />, "Tên đăng nhập", data.patient.username)}
+        {renderRow(<FileText size={15} />, "Email", data.patient.email)}
+      </div>
+
+      {/* Thông tin phiếu khám */}
+      <div className="bg-white rounded-2xl shadow p-5 space-y-4">
+        <h2 className="text-lg font-semibold">Thông tin phiếu khám</h2>
+        {renderRow(<Building2 size={15} />, "Khoa khám", data.department?.name)}
+        {renderRow(
+          <FileText size={15} />,
+          "Mô tả triệu chứng",
+          data.description,
+        )}
+        {renderRow(
+          <FileText size={15} />,
+          "Tiền sử bệnh",
+          data.pastMedicalHistory,
+        )}
+        {data.rejectedMessage &&
+          renderRow(
+            <FileText size={15} />,
+            "Lý do từ chối",
+            <span className="text-red-500">{data.rejectedMessage}</span>,
+          )}
+        {renderRow(
+          <CheckCircle size={15} />,
+          "Đã có lịch hẹn",
+          hasAppointment ? "Có" : "Chưa",
+        )}
+      </div>
+
+      {/* Hình ảnh */}
+      {data.images.length > 0 && (
+        <div className="bg-white rounded-2xl shadow p-5 space-y-4">
+          <h2 className="text-lg font-semibold">Hình ảnh đính kèm</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {data.images.map((img) => (
+              <a key={img._id} href={img.url} target="_blank" rel="noreferrer">
+                <img
+                  src={img.url}
+                  alt="Ảnh phiếu khám"
+                  className="rounded-xl object-cover w-full h-40 hover:opacity-80 transition"
+                />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <p className="text-right text-xs text-gray-400">
+        Tạo lúc: {formatDate(data.createdAt)}
+      </p>
     </div>
   );
 }

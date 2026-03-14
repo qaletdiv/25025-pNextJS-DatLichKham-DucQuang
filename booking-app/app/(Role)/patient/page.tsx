@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { GetMe } from "@/app/(Auth)/login/action";
+import { fetchAppointment, fetchMedicalForm } from "./action";
 import { 
   FileText, 
   Plus, 
@@ -10,53 +12,101 @@ import {
   User
 } from "lucide-react";
 
-// Mock data - thay bằng API call thực tế
+type DashboardAppointment = {
+  id: string;
+  doctorName: string;
+  specialty: string;
+  date: string;
+  time: string;
+  status: string;
+};
+
+type DashboardRecentForm = {
+  id: string;
+  date: string;
+  doctor: string;
+  status: string;
+};
+
+type PatientAppointmentResponse = {
+  appointments?: Array<{
+    _id: string;
+    status: string;
+    scheduleId?: {
+      date?: string;
+      startTime?: string;
+      doctorId?: {
+        first_name?: string;
+        last_name?: string;
+        department?: {
+          name?: string;
+        };
+      };
+    };
+  }>;
+  error?: string;
+};
+
 async function getDashboardData() {
-  // const data = await fetch('your-api/patient/dashboard')
+  const [me, medicalFormResult, appointmentResult] = await Promise.all([
+    GetMe(),
+    fetchMedicalForm(),
+    fetchAppointment(),
+  ]);
+
+  const forms = "error" in medicalFormResult ? [] : medicalFormResult.forms;
+  const appointments =
+    "error" in (appointmentResult as PatientAppointmentResponse)
+      ? []
+      : ((appointmentResult as PatientAppointmentResponse).appointments ?? []);
+
+  const upcomingAppointments: DashboardAppointment[] = appointments
+    .slice(0, 3)
+    .map((appointment) => ({
+      id: appointment._id,
+      doctorName: appointment.scheduleId?.doctorId
+        ? `Dr. ${appointment.scheduleId.doctorId.first_name ?? ""} ${appointment.scheduleId.doctorId.last_name ?? ""}`.trim()
+        : "TBD",
+      specialty: appointment.scheduleId?.doctorId?.department?.name ?? "General",
+      date: appointment.scheduleId?.date
+        ? new Date(appointment.scheduleId.date).toLocaleDateString("vi-VN")
+        : "TBD",
+      time: appointment.scheduleId?.startTime ?? "TBD",
+      status: appointment.status,
+    }));
+
+  const recentForms: DashboardRecentForm[] = [...forms]
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    .slice(0, 4)
+    .map((form) => ({
+      id: form._id,
+      date: new Date(form.createdAt).toLocaleDateString("vi-VN"),
+      doctor: form.department?.name ?? "Not assigned",
+      status: form.status,
+    }));
+
+  const pendingForms = forms.filter((form) => form.status === "pending").length;
+  const confirmedAppointments = appointments.filter(
+    (appointment) => appointment.status === "approved",
+  ).length;
+
   return {
     user: {
-      name: "Nguyễn Văn A",
-      id: "PT001",
+      name: me?.username ?? "Patient",
+      id: me?._id ?? "PT001",
       memberSince: "2024",
     },
     stats: {
-      totalForms: 12,
-      pending: 2,
-      confirmed: 1,
-      completed: 9,
+      totalForms: forms.length,
+      pending: pendingForms,
+      confirmed: confirmedAppointments,
+      completed: Math.max(forms.length - pendingForms, 0),
     },
-    upcomingAppointments: [
-      {
-        id: "1",
-        doctorName: "Dr. Trần Thị B",
-        specialty: "Cardiology",
-        date: "2025-02-05",
-        time: "10:00 AM",
-        status: "confirmed",
-      },
-      {
-        id: "2",
-        doctorName: "Dr. Lê Văn C",
-        specialty: "Dermatology",
-        date: "2025-02-10",
-        time: "2:30 PM",
-        status: "pending",
-      },
-    ],
-    recentForms: [
-      {
-        id: "MF001",
-        date: "2025-01-25",
-        doctor: "Dr. Nguyễn D",
-        status: "completed",
-      },
-      {
-        id: "MF002",
-        date: "2025-01-20",
-        doctor: "Dr. Phạm E",
-        status: "completed",
-      },
-    ],
+    upcomingAppointments,
+    recentForms,
   };
 }
 
@@ -66,7 +116,6 @@ export default async function PatientDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto p-6">
-        {/* Welcome Section */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-400 rounded-xl p-8 text-white mb-8">
           <div className="flex items-center justify-between">
             <div>
@@ -74,7 +123,7 @@ export default async function PatientDashboard() {
                 Welcome back, {data.user.name}!
               </h1>
               <p className="text-blue-100">
-                Patient ID: {data.user.id} • Member since {data.user.memberSince}
+                Patient ID: {data.user.id} 
               </p>
             </div>
             <div className="hidden md:block">
@@ -83,7 +132,6 @@ export default async function PatientDashboard() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
@@ -135,9 +183,7 @@ export default async function PatientDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content - 2/3 width */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Quick Actions */}
             <div className="bg-white border rounded-lg p-6 shadow-sm">
               <h2 className="text-xl font-bold mb-4 text-gray-800">
                 Quick Actions
