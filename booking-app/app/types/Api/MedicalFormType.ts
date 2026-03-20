@@ -27,6 +27,7 @@ export type MedicalFormResponse = {
     department: DepartmentType | null,
     createdAt: string,
     updatedAt: string,
+    hasAppointment: boolean,
     __v: number
 }
 

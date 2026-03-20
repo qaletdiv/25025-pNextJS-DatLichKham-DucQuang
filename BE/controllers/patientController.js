@@ -37,10 +37,20 @@ export const getAllMedicalForm = async (req, res) => {
     const medicalForms = await MedicalForm.find({ patient: patientiId })
       .populate("patient", "username email")
       .populate("department", "name description")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+    const bookedIds = await Appointment.distinct("medicalForm", {
+      medicalForm: { $in: medicalForms.map((f) => f._id) },
+      status: { $ne: "cancelled" },
+    });
+    const bookedSet = new Set(bookedIds.map((id) => id.toString()));
+    const result = medicalForms.map((form) => ({
+      ...form,
+      hasAppointment: bookedSet.has(form._id.toString()),
+    }));
     res.json({
       message: "Danh sách tất cả phiếu đăng ký khám",
-      forms: medicalForms,
+      forms: result,
     });
   } catch (error) {
     console.error("Lỗi khi lấy danh sách phiếu khám", error);
@@ -60,9 +70,11 @@ export const getDetailForm = async (req, res) => {
 
     const hasAppointment = !!(await Appointment.exists({ medicalForm: id }));
 
-    res
-      .status(200)
-      .json({ message: "Lấy phiếu khám thành công", medicalForm, hasAppointment });
+    res.status(200).json({
+      message: "Lấy phiếu khám thành công",
+      medicalForm,
+      hasAppointment,
+    });
   } catch (error) {
     console.error("Lỗi khi lấy phiếu khám", error);
     return res.status(500).json({ message: "Lỗi server" });
@@ -78,7 +90,7 @@ export const getAllDoctorDepartment = async (req, res) => {
     const doctors = await Doctor.find({
       department: medicalForm.department,
     }).select(
-      "name email phone department first_name last_name  phone_number gender"
+      "name email phone department first_name last_name  phone_number gender",
     );
     res.status(200).json({
       message: "Danh sách bác sĩ trong khoa",
@@ -95,7 +107,7 @@ export const getDoctorWithSchedules = async (req, res) => {
     const doctor = await Doctor.findById(req.params.id);
 
     const schedules = await Schedule.find({ doctorId: req.params.id }).select(
-      "date startTime endTime"
+      "date startTime endTime",
     );
 
     if (!doctor) {
